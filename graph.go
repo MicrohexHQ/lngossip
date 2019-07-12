@@ -46,9 +46,12 @@ type ChannelGraph struct {
 func (c *ChannelGraph) Tick(dbc *labelledDB, mMgr MessageManager) (int, bool) {
 	log.Printf("Running simulation for tick: %v", c.TickCount)
 
+	// Read in messages
 	messages, noMessages := mMgr.GetNewMessages(c.TickCount)
 	for _, m := range messages {
 		for _, node := range m.OriginNodes() {
+			// nodes that messages were collected for may not have been online when
+			// the network graph was collected samples, just do not propagate these messages
 			n, ok := c.Nodes[node]
 			if !ok {
 				log.Printf("Tick: cannot find node: %v to originate message: %v", node, m.UUID())
@@ -61,7 +64,10 @@ func (c *ChannelGraph) Tick(dbc *labelledDB, mMgr MessageManager) (int, bool) {
 		}
 	}
 
+	// queuedItems monitors whether any messages were sent this round,
+	// it is used to determine whether we should end the simulation or not
 	var queuedItems int
+
 	for pubkey, node := range c.Nodes {
 		queue := node.GetQueue()
 		peers := node.GetPeers()
@@ -94,12 +100,10 @@ func (c *ChannelGraph) Tick(dbc *labelledDB, mMgr MessageManager) (int, bool) {
 
 	}
 
+	// progress each node's queue, this is done by clearing the relay queue and
+	// moving the messages received into the relay queue for propagation
 	for _, n := range c.Nodes {
 		n.ProgressQueue()
-	}
-
-	if queuedItems == 0 {
-		log.Println("Simulation did not send any messages this round")
 	}
 
 	// if no items were relayed this tick, and we are out of network messages,
@@ -107,7 +111,6 @@ func (c *ChannelGraph) Tick(dbc *labelledDB, mMgr MessageManager) (int, bool) {
 	done := queuedItems == 0 && noMessages
 	c.TickCount++
 
-	log.Println()
 	return c.TickCount, done
 }
 
@@ -150,7 +153,6 @@ func (n *FloodNode) ReceiveMessage(dbc *labelledDB, msg Message, tick int, from 
 	// if we have never seen a message with this ID before,
 	// or the message we stored is out of date, add to queue of things
 	// to be sent
-
 	if !alreadySeen || cached.TimeStamp().Before(msg.TimeStamp()) {
 		n.ReceiveQueue[from] = append(n.ReceiveQueue[from], msg)
 	}
