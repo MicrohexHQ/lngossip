@@ -15,6 +15,8 @@ type Node interface {
 	GetQueue()  map[string][]Message
 	// Simulate a node receiving a message, record metrics
 	ReceiveMessage(msg Message, tick int, from string)
+	// Move received messages from the round into relay queue
+	ProgressQueue()
 }
 
 func NewChannelGraph(nodes []Node) *ChannelGraph {
@@ -92,6 +94,10 @@ func (c *ChannelGraph) Tick(mMgr MessageManager) (int, bool) {
 
 	}
 
+	for _, n:= range c.Nodes{
+		n.ProgressQueue()
+	}
+
 	if queuedItems==0{
 		log.Println("Simulation did not send any messages this round")
 	}
@@ -153,10 +159,12 @@ func (n *FloodNode) ReceiveMessage(msg Message,  tick int, from string) {
 }
 
 func (n *FloodNode) GetQueue()  map[string][]Message {
+	return n.RelayQueue
+}
+
+func (n * FloodNode)ProgressQueue(){
 	n.RelayQueue=n.ReceiveQueue
 
 	// clear receive queue because we have moved these to our broadcast queue
 	n.ReceiveQueue = make(map[string][]Message)
-
-	return n.RelayQueue
 }
