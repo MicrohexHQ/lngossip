@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
 	"strings"
@@ -73,11 +74,13 @@ func TestWriteMessageSeen(t *testing.T){
 	require.NoError(t, err)
 }
 
+type entry struct{
+	node string
+	tick int
+}
+
+
 func TestGetMessageLatency(t *testing.T){
-	type entry struct{
-		node string
-		tick int
-	}
 	tests := []struct{
 		name string
 		node string
@@ -147,6 +150,64 @@ func TestGetMessageLatency(t *testing.T){
 			latency, err:= GetMessageLatency(dbc, test.uuid, test.expectedFirstTick)
 			require.Equal(t, test.error, err)
 			require.Equal(t, test.expectedLatency, latency)
+		})
+	}
+}
+
+func TestGetDuplicateCount(t *testing.T) {
+	tests := []struct{
+		name string
+		uuid int64
+		ticks []entry
+		expectedDuplicates int
+	}{
+		{
+			name: "No duplicates",
+			uuid: 10,
+			ticks:[]entry{
+				{"node1", 1},
+				{"node2", 2},
+				{"node3", 3},
+			},
+		},
+		{
+			name: "No duplicates",
+			uuid: 10,
+			ticks:[]entry{
+				{"node1", 1},
+				{"node1", 2},
+				{"node1", 3},
+			},
+			expectedDuplicates:2,
+		},
+		{
+			name: "Duplicates across multiple nodes",
+			uuid: 10,
+			ticks:[]entry{
+				{"node1", 1},
+				{"node1", 2},
+				{"node1", 3},
+				{"node2", 3},
+				{"node3", 2},
+				{"node3", 3},
+
+			},
+			expectedDuplicates:3,
+		},
+	}
+
+	for _, test:= range tests{
+		t.Run(test.name, func(t *testing.T) {
+			dbc := connectAndResetForTesting(t)
+
+			for _, e := range test.ticks{
+				err:= WriteMessageSeen(dbc, test.uuid, e.node, e.tick)
+				require.NoError(t, err)
+			}
+
+			duplicates, err:= GetDuplicateCount(dbc, test.uuid)
+			require.NoError(t, err)
+			assert.Equal(t, test.expectedDuplicates, duplicates)
 		})
 	}
 }

@@ -122,3 +122,25 @@ func GetMessageLatency(dbc * sql.DB, messageID int64, expectedFirstTick int) (in
 
 	return total/(n-1), nil
 }
+
+func GetDuplicateCount(dbc * sql.DB, messageID int64)(int, error){
+	rows, err:=dbc.Query("select count(*) as count from received_messages where uuid=? group by node_id having count>1", messageID)
+	if err!=nil{
+		return 0, err
+	}
+
+	var total int
+
+	defer rows.Close()
+	for rows.Next() {
+		var count int
+		err := rows.Scan(&count)
+		if err != nil {
+			return 0, err
+		}
+
+		total = total + (count-1)
+	}
+
+	return total, nil
+}
