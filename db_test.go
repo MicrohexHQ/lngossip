@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"os"
@@ -14,12 +14,12 @@ var schema = `
 create table received_messages(
 	uuid bigint, 
 	node_id varchar(255), 
-	tick int
+	tick int,
+	label varchar(100)
 );
 `
 
-func connectAndResetForTesting(
-	t *testing.T) *sql.DB {
+func connectAndResetForTesting(t *testing.T) *labelledDB {
 
 	uri := os.Getenv("DB_TEST_BASE")
 	if uri == "" {
@@ -64,7 +64,10 @@ func connectAndResetForTesting(
 		}
 	}
 
-	return dbc
+	return &labelledDB{
+		dbc:dbc,
+		label:"test",
+	}
 }
 
 func TestWriteMessageSeen(t *testing.T){

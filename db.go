@@ -25,8 +25,29 @@ func getSocketFile() string {
 	return sock
 }
 
-func Connect() (*sql.DB, error) {
-	return connectWithURI(*dbURI)
+// labelledDB adds a label to each line of data to distinguish between simulations
+type labelledDB struct{
+	dbc *sql.DB
+	label string
+}
+
+func Connect(label string) (*labelledDB, error) {
+	dbc, err:= connectWithURI(*dbURI)
+	if err!=nil{
+		return nil, err
+	}
+
+	var labelCount int
+	dbc.QueryRow("select count(*) from received_messages where label=?", label).Scan(&labelCount)
+
+	if labelCount!=0{
+		return nil, errors.New("must have unique label for simulation")
+	}
+
+	return &labelledDB{
+		dbc:dbc,
+		label:label,
+	}, nil
 }
 
 func connectWithURI(connectStr string) (*sql.DB, error) {
@@ -53,9 +74,9 @@ func connectWithURI(connectStr string) (*sql.DB, error) {
 	return dbc, nil
 }
 
-func WriteMessageSeen(dbc * sql.DB,uuid int64, nodeID string, tick int)error{
-	res, err:= dbc.Exec("insert into received_messages (uuid, node_id, tick) " +
-		"values (?,?,?)", uuid, nodeID, tick)
+func WriteMessageSeen(db *labelledDB,uuid int64, nodeID string, tick int)error{
+	res, err:= db.dbc.Exec("insert into received_messages (uuid, node_id, tick, label) " +
+		"values (?,?,?,?)", uuid, nodeID, tick, db.label)
 	if err!=nil{
 		return err
 	}
@@ -80,15 +101,17 @@ var(
 // GetMessageLatency returns the average number of ticks a message took to propagate,
 // expectedTick is the point at which we first expected to see the message, and is used
 // as a sanity check to ensure 0-default values don't skew results
-func GetMessageLatency(dbc * sql.DB, messageID int64, expectedFirstTick int) (int, error){
+func GetMessageLatency(db *labelledDB, messageID int64, expectedFirstTick int) (int, error){
 	var firstSeen int
-	dbc.QueryRow("select min(tick) from received_messages where uuid=?", messageID).Scan(&firstSeen)
+	db.dbc.QueryRow("select min(tick) from received_messages where uuid=? and " +
+		"label=?", messageID, db.label).Scan(&firstSeen)
 
 	if firstSeen< expectedFirstTick{
 		return 0, errUnexpectedFirstSeen
 	}
 
-	rows, err:=dbc.Query("select max(tick) from received_messages where uuid=? group by node_id", messageID)
+	rows, err:=db.dbc.Query("select max(tick) from received_messages where uuid=? and " +
+		"label=? group by node_id", messageID, db.label)
 	if err!=nil{
 		return 0, err
 	}
@@ -123,8 +146,9 @@ func GetMessageLatency(dbc * sql.DB, messageID int64, expectedFirstTick int) (in
 	return total/(n-1), nil
 }
 
-func GetDuplicateCount(dbc * sql.DB, messageID int64)(int, error){
-	rows, err:=dbc.Query("select count(*) as count from received_messages where uuid=? group by node_id having count>1", messageID)
+func GetDuplicateCount(db *labelledDB, messageID int64)(int, error){
+	rows, err:=db.dbc.Query("select count(*) as count from received_messages " +
+		"where uuid=? and label=? group by node_id having count>1", messageID, db.label)
 	if err!=nil{
 		return 0, err
 	}

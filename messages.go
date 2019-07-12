@@ -69,16 +69,11 @@ func (f *floodManager) GetNewMessages(tick int) ([]Message, bool) {
 	return m, tick >= f.lastBucket
 }
 
-func ReportMessage(msg Message, nodeID string, tick int) {
+func ReportMessage(dbc *labelledDB, msg Message, nodeID string, tick int) {
 	if nodeCount == 0 {
 		log.Fatal("Node count is 0, has not been initialized, " +
 			"see comment on var")
 	}
 
-	uuid:= msg.UUID()
-
-	// TODO(carla): persist all message sightings by nodes;
-	// latency for node = node tick - lowest tick for message uuid
-	// duplicates for node = count of ticks per node and message
-	log.Printf("Message: %v seen by: %v at tick: %v", uuid, nodeID, tick)
+	WriteMessageSeen(dbc, msg.UUID(),nodeID, tick )
 }

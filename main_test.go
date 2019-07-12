@@ -3,6 +3,7 @@ package main
 import "testing"
 
 func TestSimulate(t *testing.T) {
+	dbc := connectAndResetForTesting(t)
 	node1, node2, node3 := "node1", "node2", "node3"
 
 	nodes := []Node{
@@ -25,5 +26,5 @@ func TestSimulate(t *testing.T) {
 		lastBucket: 3,
 	}
 
-	simulate(mMgr, nodes)
+	simulate(dbc, mMgr, nodes)
 }
