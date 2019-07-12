@@ -15,11 +15,11 @@ func TestSimulate(t *testing.T) {
 	mMgr := &floodManager{
 		messages: map[int][]Message{
 			0: []Message{
-				&ChannelUpdate{id: 1, Node: node1, chanID:"chan1"},
-				&ChannelUpdate{id: 2, Node: node2, chanID:"chan2"},
+				&ChannelUpdate{id: 1, Node: node1, chanID: "chan1"},
+				&ChannelUpdate{id: 2, Node: node2, chanID: "chan2"},
 			},
 			1: []Message{
-				&ChannelUpdate{id: 3, Node: node3, chanID:"chan3"},
+				&ChannelUpdate{id: 3, Node: node3, chanID: "chan3"},
 			},
 			2: []Message{},
 		},

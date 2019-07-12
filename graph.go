@@ -12,9 +12,9 @@ type Node interface {
 	GetPubkey() string
 	GetPeers() []string
 	// Get the queue of receiving peer -> messages to be relayed in this round
-	GetQueue()  map[string][]Message
+	GetQueue() map[string][]Message
 	// Simulate a node receiving a message, record metrics
-	ReceiveMessage(dbc * labelledDB, msg Message, tick int, from string)
+	ReceiveMessage(dbc *labelledDB, msg Message, tick int, from string)
 	// Move received messages from the round into relay queue
 	ProgressQueue()
 }
@@ -43,7 +43,7 @@ type ChannelGraph struct {
 
 // Tick advances the network by one period, where a period represents
 // the exchange of one wire message between peers.
-func (c *ChannelGraph) Tick(dbc *labelledDB,  mMgr MessageManager) (int, bool) {
+func (c *ChannelGraph) Tick(dbc *labelledDB, mMgr MessageManager) (int, bool) {
 	log.Printf("Running simulation for tick: %v", c.TickCount)
 
 	messages, noMessages := mMgr.GetNewMessages(c.TickCount)
@@ -57,7 +57,7 @@ func (c *ChannelGraph) Tick(dbc *labelledDB,  mMgr MessageManager) (int, bool) {
 
 			// prompt node to receive message so that it queues it for relay
 			// and reports its first sighting for latency measures
-			n.ReceiveMessage(dbc, m,  c.TickCount, n.GetPubkey())
+			n.ReceiveMessage(dbc, m, c.TickCount, n.GetPubkey())
 		}
 	}
 
@@ -75,11 +75,11 @@ func (c *ChannelGraph) Tick(dbc *labelledDB,  mMgr MessageManager) (int, bool) {
 
 			for sendingPeer, messages := range queue {
 				// must not send to peer that sent to us
-				if peer == sendingPeer{
+				if peer == sendingPeer {
 					continue
 				}
 
-				for _,m:= range messages{
+				for _, m := range messages {
 					// track the number of items sent. if there are not items
 					// queued and we are out of messages, then we do not need to continue
 					// the simulation
@@ -94,11 +94,11 @@ func (c *ChannelGraph) Tick(dbc *labelledDB,  mMgr MessageManager) (int, bool) {
 
 	}
 
-	for _, n:= range c.Nodes{
+	for _, n := range c.Nodes {
 		n.ProgressQueue()
 	}
 
-	if queuedItems==0{
+	if queuedItems == 0 {
 		log.Println("Simulation did not send any messages this round")
 	}
 
@@ -142,7 +142,7 @@ func (n *FloodNode) GetPeers() []string {
 	return n.Peers
 }
 
-func (n *FloodNode) ReceiveMessage(dbc * labelledDB, msg Message,  tick int, from string) {
+func (n *FloodNode) ReceiveMessage(dbc *labelledDB, msg Message, tick int, from string) {
 	ReportMessage(dbc, msg, n.Pubkey, tick)
 
 	cached, alreadySeen := n.CachedMessages[msg.ID()]
@@ -151,19 +151,19 @@ func (n *FloodNode) ReceiveMessage(dbc * labelledDB, msg Message,  tick int, fro
 	// or the message we stored is out of date, add to queue of things
 	// to be sent
 
-	if !alreadySeen  || cached.TimeStamp().Before(msg.TimeStamp()){
+	if !alreadySeen || cached.TimeStamp().Before(msg.TimeStamp()) {
 		n.ReceiveQueue[from] = append(n.ReceiveQueue[from], msg)
 	}
 
 	n.CachedMessages[msg.ID()] = msg
 }
 
-func (n *FloodNode) GetQueue()  map[string][]Message {
+func (n *FloodNode) GetQueue() map[string][]Message {
 	return n.RelayQueue
 }
 
-func (n * FloodNode)ProgressQueue(){
-	n.RelayQueue=n.ReceiveQueue
+func (n *FloodNode) ProgressQueue() {
+	n.RelayQueue = n.ReceiveQueue
 
 	// clear receive queue because we have moved these to our broadcast queue
 	n.ReceiveQueue = make(map[string][]Message)

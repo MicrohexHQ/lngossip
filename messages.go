@@ -37,9 +37,9 @@ func NewFloodMessageManager() MessageManager {
 }
 
 type ChannelUpdate struct {
-	id   int64
-	Node string
-	ts time.Time
+	id     int64
+	Node   string
+	ts     time.Time
 	chanID string
 }
 
@@ -51,11 +51,11 @@ func (c *ChannelUpdate) OriginNodes() []string {
 	return []string{c.Node}
 }
 
-func (c * ChannelUpdate)TimeStamp()time.Time{
+func (c *ChannelUpdate) TimeStamp() time.Time {
 	return c.ts
 }
 
-func (c * ChannelUpdate)ID()string{
+func (c *ChannelUpdate) ID() string {
 	return c.chanID
 }
 
@@ -75,5 +75,5 @@ func ReportMessage(dbc *labelledDB, msg Message, nodeID string, tick int) {
 			"see comment on var")
 	}
 
-	WriteMessageSeen(dbc, msg.UUID(),nodeID, tick )
+	WriteMessageSeen(dbc, msg.UUID(), nodeID, tick)
 }

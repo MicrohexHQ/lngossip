@@ -1,13 +1,12 @@
 package main
 
 import (
+	"os"
+	"strings"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"os"
-	"strings"
-
-	"testing"
 )
 
 var schema = `
@@ -65,92 +64,91 @@ func connectAndResetForTesting(t *testing.T) *labelledDB {
 	}
 
 	return &labelledDB{
-		dbc:dbc,
-		label:"test",
+		dbc:   dbc,
+		label: "test",
 	}
 }
 
-func TestWriteMessageSeen(t *testing.T){
-	dbc:=connectAndResetForTesting(t)
+func TestWriteMessageSeen(t *testing.T) {
+	dbc := connectAndResetForTesting(t)
 
-	err:= WriteMessageSeen(dbc, 4321, "node", 3)
+	err := WriteMessageSeen(dbc, 4321, "node", 3)
 	require.NoError(t, err)
 }
 
-type entry struct{
+type entry struct {
 	node string
 	tick int
 }
 
-
-func TestGetMessageLatency(t *testing.T){
-	tests := []struct{
-		name string
-		node string
+func TestGetMessageLatency(t *testing.T) {
+	tests := []struct {
+		name              string
+		node              string
 		expectedFirstTick int
-		uuid int64
-		ticks []entry
-		expectedLatency int
-		error error
+		uuid              int64
+		ticks             []entry
+		expectedLatency   int
+		error             error
 	}{
 		{
-			name:"Unexpected first seen",
-			node: "node1",
+			name:              "Unexpected first seen",
+			node:              "node1",
 			expectedFirstTick: 1,
 			ticks: []entry{
-				{"node2",0},
+				{"node2", 0},
 			},
-			error:errUnexpectedFirstSeen,
+			error: errUnexpectedFirstSeen,
 		},
 		{
-			name:"No entries, zero latency",
-			node: "node1",
+			name:              "No entries, zero latency",
+			node:              "node1",
 			expectedFirstTick: 1,
 		},
 		{
-			name:"Latency of 1, one entry",
-			node: "node1",
+			name:              "Latency of 1, one entry",
+			node:              "node1",
 			expectedFirstTick: 1,
 			ticks: []entry{
-				{"node2",2},
+				{"node2", 2},
 			},
-			expectedLatency:1,
+			expectedLatency: 1,
 		},
 		{
-			name:"Multiple entries",
-			node: "node1",
+			name:              "Multiple entries",
+			node:              "node1",
 			expectedFirstTick: 0,
-			ticks:  []entry{
-				{"node2",2},
-				{"node3",4},
+			ticks: []entry{
+				{"node2", 2},
+				{"node3", 4},
 			},
-			expectedLatency:3,
+			expectedLatency: 3,
 		},
 		{
-			name:"Multiple entries, same node",
-			node: "node1",
+			name:              "Multiple entries, same node",
+			node:              "node1",
 			expectedFirstTick: 0,
-			ticks:  []entry{
-				{"node2",2},
-				{"node2",4},
+			ticks: []entry{
+				{"node2", 2},
+				{"node2", 4},
 			},
-			expectedLatency:4,
+			expectedLatency: 4,
 		},
 	}
 
-	for _, test:= range tests{
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			dbc:= connectAndResetForTesting(t)
+			dbc := connectAndResetForTesting(t)
 
-			err:= WriteMessageSeen(dbc, test.uuid, test.node, test.expectedFirstTick)
+			err := WriteMessageSeen(dbc, test.uuid, test.node, test.expectedFirstTick)
 			require.NoError(t, err)
 
-			for _, e := range test.ticks{
-				err= WriteMessageSeen(dbc, test.uuid, e.node, e.tick)
+			for _, e := range test.ticks {
+				err = WriteMessageSeen(dbc, test.uuid, e.node, e.tick)
 				require.NoError(t, err)
 			}
 
-			latency, err:= GetMessageLatency(dbc, test.uuid, test.expectedFirstTick)
+			latency, err := GetMessageLatency(dbc, test.uuid, test.expectedFirstTick)
 			require.Equal(t, test.error, err)
 			require.Equal(t, test.expectedLatency, latency)
 		})
@@ -158,16 +156,16 @@ func TestGetMessageLatency(t *testing.T){
 }
 
 func TestGetDuplicateCount(t *testing.T) {
-	tests := []struct{
-		name string
-		uuid int64
-		ticks []entry
+	tests := []struct {
+		name               string
+		uuid               int64
+		ticks              []entry
 		expectedDuplicates int
 	}{
 		{
 			name: "No duplicates",
 			uuid: 10,
-			ticks:[]entry{
+			ticks: []entry{
 				{"node1", 1},
 				{"node2", 2},
 				{"node3", 3},
@@ -176,39 +174,38 @@ func TestGetDuplicateCount(t *testing.T) {
 		{
 			name: "No duplicates",
 			uuid: 10,
-			ticks:[]entry{
+			ticks: []entry{
 				{"node1", 1},
 				{"node1", 2},
 				{"node1", 3},
 			},
-			expectedDuplicates:2,
+			expectedDuplicates: 2,
 		},
 		{
 			name: "Duplicates across multiple nodes",
 			uuid: 10,
-			ticks:[]entry{
+			ticks: []entry{
 				{"node1", 1},
 				{"node1", 2},
 				{"node1", 3},
 				{"node2", 3},
 				{"node3", 2},
 				{"node3", 3},
-
 			},
-			expectedDuplicates:3,
+			expectedDuplicates: 3,
 		},
 	}
 
-	for _, test:= range tests{
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			dbc := connectAndResetForTesting(t)
 
-			for _, e := range test.ticks{
-				err:= WriteMessageSeen(dbc, test.uuid, e.node, e.tick)
+			for _, e := range test.ticks {
+				err := WriteMessageSeen(dbc, test.uuid, e.node, e.tick)
 				require.NoError(t, err)
 			}
 
-			duplicates, err:= GetDuplicateCount(dbc, test.uuid)
+			duplicates, err := GetDuplicateCount(dbc, test.uuid)
 			require.NoError(t, err)
 			assert.Equal(t, test.expectedDuplicates, duplicates)
 		})
