@@ -1,10 +1,19 @@
 package main
 
-import "log"
+import (
+	"log"
+	"time"
+)
 
 type Message interface {
 	UUID() int64
+	// Return the ID used to uniquely identify message in the protocol
+	// Short channel ID, node ID etc
+	ID() string
+	// Nodes that originally creates the message
 	OriginNodes() []string
+	// Timestamp of message
+	TimeStamp() time.Time
 }
 
 type floodManager struct {
@@ -30,6 +39,8 @@ func NewFloodMessageManager() MessageManager {
 type ChannelUpdate struct {
 	id   int64
 	Node string
+	ts time.Time
+	chanID string
 }
 
 func (c *ChannelUpdate) UUID() int64 {
@@ -38,6 +49,14 @@ func (c *ChannelUpdate) UUID() int64 {
 
 func (c *ChannelUpdate) OriginNodes() []string {
 	return []string{c.Node}
+}
+
+func (c * ChannelUpdate)TimeStamp()time.Time{
+	return c.ts
+}
+
+func (c * ChannelUpdate)ID()string{
+	return c.chanID
 }
 
 func (f *floodManager) GetNewMessages(tick int) ([]Message, bool) {
@@ -50,30 +69,16 @@ func (f *floodManager) GetNewMessages(tick int) ([]Message, bool) {
 	return m, tick >= f.lastBucket
 }
 
-var reportedMessage = make(map[int64]int)
-
-func ReportMessage(uuid int64, nodeID string, tick, seenCount int) {
+func ReportMessage(msg Message, nodeID string, tick int) {
 	if nodeCount == 0 {
 		log.Fatal("Node count is 0, has not been initialized, " +
 			"see comment on var")
 	}
 
+	uuid:= msg.UUID()
+
 	// TODO(carla): persist all message sightings by nodes;
 	// latency for node = node tick - lowest tick for message uuid
 	// duplicates for node = count of ticks per node and message
 	log.Printf("Message: %v seen by: %v at tick: %v", uuid, nodeID, tick)
-
-	// message has already been seen by this node, we do not need
-	// to add it to the total count of messages in the network
-	if seenCount != 0 {
-		return
-	}
-
-	totalSightings := reportedMessage[uuid]
-	reportedMessage[uuid] = totalSightings + 1
-
-	// TODO(carla): persist point when whole network has message
-	if reportedMessage[uuid] == nodeCount {
-		log.Printf("Message: %v seen by entire network of %v nodes", uuid, nodeCount)
-	}
 }

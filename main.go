@@ -19,8 +19,7 @@ func simulate(mMgr MessageManager, nodes []Node) {
 	// nodes to simulate creation of messages.
 
 	for {
-		tickCount, done := chanGraph.Tick(mMgr)
-		log.Printf("Running simulation for tick: %v", tickCount)
+		_, done := chanGraph.Tick(mMgr)
 
 		if done {
 			break
