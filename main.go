@@ -16,7 +16,18 @@ func main() {
 		log.Fatalf("could not connect to DB: %v", err)
 	}
 
-	simulate(dbc, NewFloodMessageManager(), []Node{})
+	// TODO(carla): do for whole data range
+	startTime, err := time.Parse("2006-01-02 15:04:05", "2019-07-10 12:00:00")
+	if err != nil {
+		log.Fatalf("cannot parse time: %v", err)
+	}
+
+	mgr, err := NewFloodMessageManager(startTime, time.Hour*12)
+	if err != nil {
+		log.Fatalf("could not load messages: %v", err)
+	}
+
+	simulate(dbc, mgr, []Node{})
 }
 
 func simulate(dbc *labelledDB, mMgr MessageManager, nodes []Node) {

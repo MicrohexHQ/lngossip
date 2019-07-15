@@ -28,19 +28,69 @@ type MessageManager interface {
 	GetNewMessages(tick int) ([]Message, bool)
 }
 
-func NewFloodMessageManager() MessageManager {
-	// TODO(carla): read in messages from DB here
+func NewFloodMessageManager(startTime time.Time, duration time.Duration) (MessageManager, error) {
+	dbc, err := connectWithURI("mysql://root@unix(" + SockFile + ")/wirewatcher?")
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make(map[int][]Message)
+	endTime := startTime.Add(duration)
+	// get unique messages from the DB over the given period
+	rows, err := dbc.Query("select ANY_VALUE(channel_updates.uuid) as "+
+		"`uuid`, channel_updates.chan_id,  ANY_VALUE(`timestamp`) as "+
+		"`timestamp`, ANY_VALUE(byte_len)  as `byte_len`, ANY_VALUE(node_1) "+
+		"as `node_1`, ANY_VALUE(node_2) as `node_2`, channel_updates.channel_flags "+
+		" from channel_updates,  ln_messages, channel_announcements where "+
+		"channel_updates.uuid =  ln_messages.uuid and channel_announcements.chan_id = "+
+		"channel_updates.chan_id and `timestamp`>=? and `timestamp`<=? "+
+		"group by channel_updates.chan_id, base_fee, fee_rate, channel_flags, "+
+		"max_htlc, min_htlc, timelock_delta", startTime, endTime)
+	if err != nil {
+		return nil, err
+	}
+
+	var lastBucket int
+
+	defer rows.Close()
+	for rows.Next() {
+		var flags int
+		var node1, node2 string
+
+		var msg ChannelUpdate
+		err := rows.Scan(&msg.id, &msg.chanID, &msg.ts, &msg.byteLen, &node1, &node2, &flags)
+		if err != nil {
+			return nil, err
+		}
+
+		msg.Node = node1
+		if flags == 1 {
+			msg.Node = node2
+		}
+
+		bucket := int(msg.ts.Sub(startTime).Seconds() / 90)
+		if bucket >= lastBucket {
+			lastBucket = bucket
+		}
+		messages[bucket] = append(messages[bucket], &msg)
+	}
+
+	for bucket, ms := range messages {
+		log.Printf("Bucket: %v, count: %v", bucket, len(ms))
+	}
 
 	return &floodManager{
-		messages: make(map[int][]Message),
-	}
+		messages:   messages,
+		lastBucket: lastBucket,
+	}, nil
 }
 
 type ChannelUpdate struct {
-	id     int64
-	Node   string
-	ts     time.Time
-	chanID string
+	id      int64
+	Node    string
+	ts      time.Time
+	chanID  string
+	byteLen int
 }
 
 func (c *ChannelUpdate) UUID() int64 {
