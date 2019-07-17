@@ -6,10 +6,10 @@ func TestSimulate(t *testing.T) {
 	dbc := connectAndResetForTesting(t)
 	node1, node2, node3 := "node1", "node2", "node3"
 
-	nodes := []Node{
-		MakeFloodNode(node1, []string{node2}),
-		MakeFloodNode(node2, []string{node1, node3}),
-		MakeFloodNode(node3, []string{node2}),
+	nodes := map[string]Node{
+		node1: MakeFloodNode(node1, []string{node2}),
+		node2: MakeFloodNode(node2, []string{node1, node3}),
+		node3: MakeFloodNode(node3, []string{node2}),
 	}
 
 	mMgr := &floodManager{

@@ -75,10 +75,6 @@ func NewFloodMessageManager(startTime time.Time, duration time.Duration) (Messag
 		messages[bucket] = append(messages[bucket], &msg)
 	}
 
-	for bucket, ms := range messages {
-		log.Printf("Bucket: %v, count: %v", bucket, len(ms))
-	}
-
 	return &floodManager{
 		messages:   messages,
 		lastBucket: lastBucket,
@@ -119,11 +115,6 @@ func (f *floodManager) GetNewMessages(tick int) ([]Message, bool) {
 	return m, tick >= f.lastBucket
 }
 
-func ReportMessage(dbc *labelledDB, msg Message, nodeID string, tick int) {
-	if nodeCount == 0 {
-		log.Fatal("Node count is 0, has not been initialized, " +
-			"see comment on var")
-	}
-
-	WriteMessageSeen(dbc, msg.UUID(), nodeID, tick)
+func ReportMessage(dbc *labelledDB, msg Message, nodeID string, tick int) error {
+	return WriteMessageSeen(dbc, msg.UUID(), nodeID, tick)
 }
