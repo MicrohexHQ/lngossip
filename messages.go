@@ -6,13 +6,18 @@ import (
 )
 
 type Message interface {
+	// UUID is a unique ID given to the message during data gathering
+	// to allow for easy correlation of LN messages and underlying detail.
 	UUID() int64
+
 	// Return the ID used to uniquely identify message in the protocol
-	// Short channel ID, node ID etc
+	// Short channel ID, node ID etc.
 	ID() string
-	// Nodes that originally creates the message
+
+	// Node(s) that originally created the message.
 	OriginNodes() []string
-	// Timestamp of message
+
+	// Timestamp of message.
 	TimeStamp() time.Time
 }
 

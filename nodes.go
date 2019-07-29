@@ -41,8 +41,7 @@ func readChanGraph() (map[string]Node, error) {
 		nodes[node.PubKey] = &FloodNode{
 			Pubkey:         node.PubKey,
 			RelayQueue:     make(map[string][]Message),
-			ReceiveQueue:   make(map[string][]Message),
-			CachedMessages: make(map[string]Message),
+			CachedMessages: make(map[string]cachedMessage),
 		}
 	}
 

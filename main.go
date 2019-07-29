@@ -6,7 +6,11 @@ import (
 	"time"
 )
 
-var dbLabel = flag.String("db_label", "label", "value to label simulation data with to uniquely identify it with")
+// dbLabel flag is used to make sure that data from separate runs of the
+// simulation do not interfere with each other. It should be set to a unique
+// value, or the data should be cleared per run.
+var dbLabel = flag.String("db_label", "label",
+	"value to label simulation data with to uniquely identify it with")
 
 func main() {
 	flag.Parse()
@@ -23,14 +27,14 @@ func main() {
 	}
 
 	// TODO(carla): do for whole data range
-	startTime, err := time.Parse("2006-01-02 15:04:05", "2019-07-10 12:00:00")
+	startTime, err := time.Parse("2006-01-02 15:04:05", "2019-07-10 14:00:00")
 	if err != nil {
 		log.Fatalf("cannot parse time: %v", err)
 	}
 
 	log.Println("Reading in messages")
 	// TODO(carla): make this more efficient, takes aaages
-	mgr, err := NewFloodMessageManager(startTime, time.Hour*12)
+	mgr, err := NewFloodMessageManager(startTime, time.Hour)
 	if err != nil {
 		log.Fatalf("could not load messages: %v", err)
 	}
