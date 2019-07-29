@@ -75,6 +75,8 @@ func connectWithURI(connectStr string) (*sql.DB, error) {
 	return dbc, nil
 }
 
+// WriteMessageSeen logs the tick at which a message was seen by a node.
+// It may be called multiple times for a given node and message.
 func WriteMessageSeen(db *labelledDB, uuid int64, nodeID string, tick int) error {
 	res, err := db.dbc.Exec("insert into received_messages (uuid, node_id, tick, label) "+
 		"values (?,?,?,?)", uuid, nodeID, tick, db.label)
@@ -147,6 +149,8 @@ func GetMessageLatency(db *labelledDB, messageID int64, expectedFirstTick int) (
 	return total / (n - 1), nil
 }
 
+// GetDuplicateCount returns the number of times a message was received by a
+// node which already has it.
 func GetDuplicateCount(db *labelledDB, messageID int64) (int, error) {
 	rows, err := db.dbc.Query("select count(*) as count from received_messages "+
 		"where uuid=? and label=? group by node_id having count>1", messageID, db.label)

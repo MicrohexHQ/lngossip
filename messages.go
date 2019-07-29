@@ -8,6 +8,7 @@ import (
 type Message interface {
 	// UUID is a unique ID given to the message during data gathering
 	// to allow for easy correlation of LN messages and underlying detail.
+	// It should only be used for DB level operations.
 	UUID() int64
 
 	// Return the ID used to uniquely identify message in the protocol
