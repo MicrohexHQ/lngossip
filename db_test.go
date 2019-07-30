@@ -13,8 +13,12 @@ var schema = `
 create table received_messages(
 	uuid bigint, 
 	node_id varchar(255), 
-	tick int,
-	label varchar(100)
+	first_seen int,
+	last_seen int,
+	seen_count int, 
+	label varchar(100),
+
+	primary key(uuid, node_id)
 );
 `
 
@@ -72,8 +76,25 @@ func connectAndResetForTesting(t *testing.T) *labelledDB {
 func TestWriteMessageSeen(t *testing.T) {
 	dbc := connectAndResetForTesting(t)
 
-	err := WriteMessageSeen(dbc, 4321, "node", 3)
+	uuid := int64(432)
+	nodeID := "node 12"
+
+	err := WriteMessageSeen(dbc, uuid, nodeID, 3)
 	require.NoError(t, err)
+
+	// Write same value, ok
+	err = WriteMessageSeen(dbc, uuid, nodeID, 4)
+	require.NoError(t, err)
+
+	var firstSeen, lastSeen, seenCount int
+	err = dbc.dbc.QueryRow("select first_seen, last_seen, seen_count from "+
+		"received_messages where uuid=? and node_id=?", uuid, nodeID).Scan(&firstSeen,
+		&lastSeen, &seenCount)
+	require.NoError(t, err)
+
+	require.Equal(t, 2, seenCount)
+	require.Equal(t, 4, lastSeen)
+	require.Equal(t, 3, firstSeen)
 }
 
 type entry struct {
@@ -132,7 +153,7 @@ func TestGetMessageLatency(t *testing.T) {
 				{"node2", 2},
 				{"node2", 4},
 			},
-			expectedLatency: 4,
+			expectedLatency: 2,
 		},
 	}
 

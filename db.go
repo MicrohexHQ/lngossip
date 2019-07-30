@@ -78,8 +78,32 @@ func connectWithURI(connectStr string) (*sql.DB, error) {
 // WriteMessageSeen logs the tick at which a message was seen by a node.
 // It may be called multiple times for a given node and message.
 func WriteMessageSeen(db *labelledDB, uuid int64, nodeID string, tick int) error {
-	res, err := db.dbc.Exec("insert into received_messages (uuid, node_id, tick, label) "+
-		"values (?,?,?,?)", uuid, nodeID, tick, db.label)
+	var newRecord bool
+
+	var firstSeen, lastSeen, seenCount int
+	err := db.dbc.QueryRow("select first_seen, last_seen, "+
+		"seen_count from received_messages where uuid=? and node_id=?",
+		uuid, nodeID).Scan(&firstSeen, &lastSeen, &seenCount)
+	// if there is not an entry of the node and uuid, this is a new record in the DB.
+	if err == sql.ErrNoRows {
+		newRecord = true
+	} else if err != nil {
+		return err
+	}
+
+	// if we have seen the node has seen the message before, update the last
+	// seen and count.
+	query := fmt.Sprintf("update received_messages set last_seen=%v, "+
+		"seen_count=%v where uuid=%v and node_id=\"%v\" and label=\"%v\"", tick, seenCount+1,
+		uuid, nodeID, db.label)
+	// if this is the first time the message has been seen, create a new record.
+	if newRecord {
+		query = fmt.Sprintf("insert into received_messages "+
+			"(uuid, node_id, first_seen, last_seen, seen_count, label) "+
+			"values (%v,\"%v\",%v,%v,%v,\"%v\")", uuid, nodeID, tick, tick, 1, db.label)
+	}
+
+	res, err := db.dbc.Exec(query)
 	if err != nil {
 		return err
 	}
@@ -106,14 +130,14 @@ var (
 // as a sanity check to ensure 0-default values don't skew results
 func GetMessageLatency(db *labelledDB, messageID int64, expectedFirstTick int) (int, error) {
 	var firstSeen int
-	db.dbc.QueryRow("select min(tick) from received_messages where uuid=? and "+
+	db.dbc.QueryRow("select min(first_seen) from received_messages where uuid=? and "+
 		"label=?", messageID, db.label).Scan(&firstSeen)
 
 	if firstSeen < expectedFirstTick {
 		return 0, errUnexpectedFirstSeen
 	}
 
-	rows, err := db.dbc.Query("select max(tick) from received_messages where uuid=? and "+
+	rows, err := db.dbc.Query("select max(first_seen) from received_messages where uuid=? and "+
 		"label=? group by node_id", messageID, db.label)
 	if err != nil {
 		return 0, err
@@ -152,8 +176,8 @@ func GetMessageLatency(db *labelledDB, messageID int64, expectedFirstTick int) (
 // GetDuplicateCount returns the number of times a message was received by a
 // node which already has it.
 func GetDuplicateCount(db *labelledDB, messageID int64) (int, error) {
-	rows, err := db.dbc.Query("select count(*) as count from received_messages "+
-		"where uuid=? and label=? group by node_id having count>1", messageID, db.label)
+	rows, err := db.dbc.Query("select seen_count from received_messages "+
+		"where uuid=? and label=? and seen_count>1", messageID, db.label)
 	if err != nil {
 		return 0, err
 	}
