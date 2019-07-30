@@ -11,6 +11,10 @@ import (
 // value, or the data should be cleared per run.
 var dbLabel = flag.String("db_label", "label",
 	"value to label simulation data with to uniquely identify it with")
+var startTime = flag.String("start_time", "2019-07-10 14:00:00",
+	"start time in your dataset, must be expressed in format provided")
+var duration = flag.Duration("duration", time.Minute*10,
+	"amount of messages to load (specified in time)")
 
 func main() {
 	flag.Parse()
@@ -27,14 +31,14 @@ func main() {
 	}
 
 	// TODO(carla): do for whole data range
-	startTime, err := time.Parse("2006-01-02 15:04:05", "2019-07-10 14:00:00")
+	startTime, err := time.Parse("2006-01-02 15:04:05", *startTime)
 	if err != nil {
 		log.Fatalf("cannot parse time: %v", err)
 	}
 
 	log.Println("Reading in messages")
 	// TODO(carla): make this more efficient, takes aaages
-	mgr, err := NewFloodMessageManager(startTime, time.Hour)
+	mgr, err := NewFloodMessageManager(startTime, *duration)
 	if err != nil {
 		log.Fatalf("could not load messages: %v", err)
 	}
