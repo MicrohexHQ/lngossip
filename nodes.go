@@ -2,11 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"io/ioutil"
 	"log"
 
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
+
+var chanGraphPath = flag.String("chan_graph",
+	"/Users/carla/personal/src/github.com/carlaKC/lngossip/data/July10/graph.txt",
+	"Path to channel graph obtained from LND's describe graph call")
 
 type chanGraph struct {
 	/// The list of `LightningNode`s in this channel graph
@@ -25,8 +30,7 @@ type ChannelEdge struct {
 }
 
 func readChanGraph() (map[string]Node, error) {
-	file, err := ioutil.ReadFile("/Users/carla/personal/src/" +
-		"github.com/carlaKC/lngossip/data/July10/graph.txt")
+	file, err := ioutil.ReadFile(*chanGraphPath)
 	if err != nil {
 		return nil, err
 	}

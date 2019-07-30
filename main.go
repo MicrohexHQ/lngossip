@@ -13,13 +13,13 @@ var dbLabel = flag.String("db_label", "label",
 	"value to label simulation data with to uniquely identify it with")
 var startTime = flag.String("start_time", "2019-07-10 14:00:00",
 	"start time in your dataset, must be expressed in format provided")
-var duration = flag.Duration("duration", time.Minute*10,
+var duration = flag.Duration("duration_minutes", 10,
 	"amount of messages to load (specified in time)")
 
 func main() {
 	flag.Parse()
 
-	dbc, err := Connect("label")
+	dbc, err := Connect(*dbLabel)
 	if err != nil {
 		log.Fatalf("could not connect to DB: %v", err)
 	}

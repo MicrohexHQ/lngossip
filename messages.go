@@ -1,9 +1,14 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"time"
 )
+
+var wirewatcher = flag.String("wirewatcher_db",
+	"mysql://root@unix("+SockFile+")/wirewatcher?",
+	"uri for wirewatcher DB")
 
 type Message interface {
 	// UUID is a unique ID given to the message during data gathering
@@ -35,7 +40,7 @@ type MessageManager interface {
 }
 
 func NewFloodMessageManager(startTime time.Time, duration time.Duration) (MessageManager, error) {
-	dbc, err := connectWithURI("mysql://root@unix(" + SockFile + ")/wirewatcher?")
+	dbc, err := connectWithURI(*wirewatcher)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +52,7 @@ func NewFloodMessageManager(startTime time.Time, duration time.Duration) (Messag
 		"`uuid`, channel_updates.chan_id,  ANY_VALUE(`timestamp`) as "+
 		"`timestamp`, ANY_VALUE(byte_len)  as `byte_len`, ANY_VALUE(node_1) "+
 		"as `node_1`, ANY_VALUE(node_2) as `node_2`, channel_updates.channel_flags "+
-		" from channel_updates,  ln_messages, channel_announcements where "+
+		" from channel_updates, ln_messages, channel_announcements where "+
 		"channel_updates.uuid =  ln_messages.uuid and channel_announcements.chan_id = "+
 		"channel_updates.chan_id and `timestamp`>=? and `timestamp`<=? "+
 		"group by channel_updates.chan_id, base_fee, fee_rate, channel_flags, "+
