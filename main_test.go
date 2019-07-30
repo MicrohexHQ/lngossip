@@ -102,7 +102,7 @@ func TestSimulate(t *testing.T) {
 					t.Fatalf("Expected C to receive one duplicate, got: %v", count)
 				}
 
-				latency, err := GetMessageLatency(dbc, 1, 0)
+				latency, err := GetMessageLatency(dbc, 1)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -140,7 +140,7 @@ func TestSimulate(t *testing.T) {
 					t.Fatalf("Expected A to receive one duplicate, got: %v", count)
 				}
 
-				latency, err := GetMessageLatency(dbc, 1, 0)
+				latency, err := GetMessageLatency(dbc, 1)
 				if err != nil {
 					t.Fatal(err)
 				}

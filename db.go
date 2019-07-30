@@ -128,14 +128,8 @@ var (
 // GetMessageLatency returns the average number of ticks a message took to propagate,
 // expectedTick is the point at which we first expected to see the message, and is used
 // as a sanity check to ensure 0-default values don't skew results
-func GetMessageLatency(db *labelledDB, messageID int64, expectedFirstTick int) (int, error) {
+func GetMessageLatency(db *labelledDB, messageID int64) (int, error) {
 	var firstSeen int
-	db.dbc.QueryRow("select min(first_seen) from received_messages where uuid=? and "+
-		"label=?", messageID, db.label).Scan(&firstSeen)
-
-	if firstSeen < expectedFirstTick {
-		return 0, errUnexpectedFirstSeen
-	}
 
 	rows, err := db.dbc.Query("select max(first_seen) from received_messages where uuid=? and "+
 		"label=? group by node_id", messageID, db.label)
@@ -196,4 +190,72 @@ func GetDuplicateCount(db *labelledDB, messageID int64) (int, error) {
 	}
 
 	return total, nil
+}
+
+// GetDuplicateBucket returns the number of nodes which received a message
+// duplicateCount times (special case 0 returns the total number of recipients).
+func GetDuplicateBucket(db *labelledDB, messageID int64, duplicateCount int) (int, error) {
+	var total int
+
+	err := db.dbc.QueryRow("select count(*) from received_messages "+
+		"where uuid=? and label=? and seen_count>?", messageID, db.label,
+		duplicateCount).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+
+	return total, nil
+}
+
+type summary struct {
+	messageID        int64
+	latency          int
+	duplicateBuckets map[int]int
+}
+
+// Return a summary for every message sent during the simulation. This includes
+// the latency for the message to propagate and the duplicate count.
+func GetSummary(db *labelledDB) ([]summary, error) {
+	rows, err := db.dbc.Query("select distinct uuid from received_messages")
+	if err != nil {
+		return nil, err
+	}
+
+	var summaries []summary
+
+	defer rows.Close()
+	for rows.Next() {
+		var uuid int64
+		err := rows.Scan(&uuid)
+		if err != nil {
+			return nil, err
+		}
+
+		// latency is the difference between the node that first saw a a message
+		// and the node that last saw a message
+		latency, err := GetMessageLatency(db, uuid)
+		if err != nil {
+			return nil, err
+		}
+
+		summary := summary{
+			messageID: uuid,
+			latency:   latency,
+		}
+
+		buckets := make(map[int]int)
+		// get count of messages that have more than x reciepts of the message
+		for _, i := range []int{0, 1, 5, 10, 100} {
+			bucket, err := GetDuplicateBucket(db, uuid, i)
+			if err != nil {
+				return nil, err
+			}
+
+			buckets[i] = bucket
+		}
+
+		summaries = append(summaries, summary)
+	}
+
+	return summaries, nil
 }
