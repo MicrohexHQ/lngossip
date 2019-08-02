@@ -102,25 +102,15 @@ type entry struct {
 	tick int
 }
 
-func TestGetMessageLatency(t *testing.T) {
+func TestGetAverageLatency(t *testing.T) {
 	tests := []struct {
 		name            string
 		node            string
 		firstSeen       int
 		uuid            int64
 		ticks           []entry
-		expectedLatency int
-		error           error
+		expectedLatency float64
 	}{
-		{
-			name:      "Unexpected first seen",
-			node:      "node1",
-			firstSeen: 1,
-			ticks: []entry{
-				{"node2", 0},
-			},
-			error: errUnexpectedFirstSeen,
-		},
 		{
 			name:      "No entries, zero latency",
 			node:      "node1",
@@ -169,8 +159,8 @@ func TestGetMessageLatency(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			latency, err := GetMessageLatency(dbc, test.uuid)
-			require.Equal(t, test.error, err)
+			latency, err := GetAverageLatency(dbc, test.uuid)
+			require.NoError(t, err)
 			require.Equal(t, test.expectedLatency, latency)
 		})
 	}

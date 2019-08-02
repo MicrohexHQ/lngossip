@@ -34,7 +34,6 @@ func main() {
 		log.Fatalf("cannot parse channel graph: %v", err)
 	}
 
-	// TODO(carla): do for whole data range
 	startTime, err := time.Parse("2006-01-02 15:04:05", *startTime)
 	if err != nil {
 		log.Fatalf("cannot parse time: %v", err)
@@ -48,10 +47,20 @@ func main() {
 	}
 
 	simulate(dbc, mgr, nodes)
+
+	// print out latency and duplicate summaries for nodes.
+	summaries, err := GetSummary(dbc)
+	if err != nil {
+		log.Fatalf("could not get summary: %v", err)
+	}
+	for _, s := range summaries {
+		s.print()
+	}
 }
 
 func simulate(dbc *labelledDB, mMgr MessageManager, nodes map[string]Node) {
-	log.Printf("Stating simulation at %v", time.Now())
+	start := time.Now()
+	log.Printf("Stating simulation at %v", start)
 	chanGraph := NewChannelGraph(nodes)
 
 	// track the number of peers that we could not find in the chan graph
@@ -77,8 +86,8 @@ func simulate(dbc *labelledDB, mMgr MessageManager, nodes map[string]Node) {
 		}
 	}
 
-	log.Printf("Ending simulation at %v, unknown peers: %v, "+
-		"unknown nodes: %v", time.Now(),
+	log.Printf("Ending simulation at %v, Runtime: %v, unknown peers: %v, "+
+		"unknown nodes: %v", time.Now(), time.Now().Sub(start),
 		float32(unknownPeers)/float32(knownPeers+unknownPeers),
 		float32(unknownNodes)/float32(knownNodes+unknownNodes))
 }

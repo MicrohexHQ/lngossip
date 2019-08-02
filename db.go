@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 	"time"
@@ -125,14 +126,30 @@ var (
 	errNegativeLatency     = errors.New("negative latency calculated")
 )
 
-// GetMessageLatency returns the average number of ticks a message took to propagate,
-// expectedTick is the point at which we first expected to see the message, and is used
-// as a sanity check to ensure 0-default values don't skew results
+// GetMessageLatency gets the number of ticks it took a message to propagate fully.
 func GetMessageLatency(db *labelledDB, messageID int64) (int, error) {
+	var firstSeen, lastSeen int
+
+	err := db.dbc.QueryRow("select min(first_seen), max(first_seen) from received_messages "+
+		"where uuid=? and label=?", messageID, db.label).Scan(&firstSeen, &lastSeen)
+	if err != nil {
+		return 0, err
+	}
+
+	return lastSeen - firstSeen, nil
+}
+
+func GetAverageLatency(db *labelledDB, messageID int64) (float64, error) {
 	var firstSeen int
 
-	rows, err := db.dbc.Query("select max(first_seen) from received_messages where uuid=? and "+
-		"label=? group by node_id", messageID, db.label)
+	err := db.dbc.QueryRow("select min(first_seen) from received_messages "+
+		"where uuid=? and label=?", messageID, db.label).Scan(&firstSeen)
+	if err != nil {
+		return 0, err
+	}
+
+	rows, err := db.dbc.Query("select first_seen from received_messages "+
+		"where uuid=? and label=?", messageID, db.label)
 	if err != nil {
 		return 0, err
 	}
@@ -148,6 +165,7 @@ func GetMessageLatency(db *labelledDB, messageID int64) (int, error) {
 		}
 
 		latency := lastSeen - firstSeen
+
 		// sanity check
 		if latency < 0 {
 			return 0, errNegativeLatency
@@ -158,13 +176,14 @@ func GetMessageLatency(db *labelledDB, messageID int64) (int, error) {
 		n++
 	}
 
-	// if only 1 row was found, it is the firstSeen value and the message
-	// was not propagated at all
+	// there is a single entry for the message (it did not propagate)
 	if n == 1 {
-		return 0, nil
+		return float64(total), nil
 	}
 
-	return total / (n - 1), nil
+	// The original entry is included in total, so the result will be off
+	// by one unless we account for it
+	return float64(total) / float64(n-1), nil
 }
 
 // GetDuplicateCount returns the number of times a message was received by a
@@ -211,6 +230,17 @@ type summary struct {
 	messageID        int64
 	latency          int
 	duplicateBuckets map[int]int
+	averageLatency   float64
+}
+
+func (s *summary) print() {
+	log.Printf("Summary for message: %v, latency: %v, average ticks: %v",
+		s.messageID, s.latency, s.averageLatency)
+
+	for k, v := range s.duplicateBuckets {
+		log.Printf("Nodes that received message more than %v times: %v", k, v)
+	}
+	log.Println()
 }
 
 // Return a summary for every message sent during the simulation. This includes
@@ -238,9 +268,15 @@ func GetSummary(db *labelledDB) ([]summary, error) {
 			return nil, err
 		}
 
+		averageLatency, err := GetAverageLatency(db, uuid)
+		if err != nil {
+			return nil, err
+		}
+
 		summary := summary{
-			messageID: uuid,
-			latency:   latency,
+			messageID:      uuid,
+			latency:        latency,
+			averageLatency: averageLatency,
 		}
 
 		buckets := make(map[int]int)
@@ -253,7 +289,7 @@ func GetSummary(db *labelledDB) ([]summary, error) {
 
 			buckets[i] = bucket
 		}
-
+		summary.duplicateBuckets = buckets
 		summaries = append(summaries, summary)
 	}
 
