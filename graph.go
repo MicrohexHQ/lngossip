@@ -65,7 +65,10 @@ func (c *ChannelGraph) Tick(dbc *labelledDB, mMgr MessageManager) (*tickResult, 
 
 	var nodeProgress int
 	for pubkey, node := range c.Nodes {
-		log.Printf("Processed sends for %v of %v nodes", nodeProgress, len(c.Nodes))
+		if nodeProgress%1000 == 0 {
+			log.Printf("Processed sends for %v of %v nodes", nodeProgress, len(c.Nodes))
+		}
+
 		// Get the queue of peer -> message list and send messages to each peer.
 		for peer, messages := range node.GetQueue() {
 			//log.Printf("Node: %v sending: %v messages to %v", pubkey, len(messages), peer)

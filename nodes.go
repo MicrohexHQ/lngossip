@@ -9,9 +9,11 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc"
 )
 
-var chanGraphPath = flag.String("chan_graph",
-	"/Users/carla/personal/src/github.com/carlaKC/lngossip/data/July10/graph.txt",
-	"Path to channel graph obtained from LND's describe graph call")
+var (
+	chanGraphPath = flag.String("chan_graph",
+		"/Users/carla/personal/src/github.com/carlaKC/lngossip/data/July10/graph.txt",
+		"Path to channel graph obtained from LND's describe graph call")
+)
 
 type chanGraph struct {
 	/// The list of `LightningNode`s in this channel graph

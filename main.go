@@ -9,12 +9,16 @@ import (
 // dbLabel flag is used to make sure that data from separate runs of the
 // simulation do not interfere with each other. It should be set to a unique
 // value, or the data should be cleared per run.
-var dbLabel = flag.String("db_label", "label",
-	"value to label simulation data with to uniquely identify it with")
-var startTime = flag.String("start_time", "2019-07-10 14:00:00",
-	"start time in your dataset, must be expressed in format provided")
-var duration = flag.Int("duration_minutes", 60,
-	"amount of messages to load (specified in time)")
+var (
+	dbLabel = flag.String("db_label", "label",
+		"value to label simulation data with to uniquely identify it with")
+
+	startTime = flag.String("start_time", "2019-07-10 14:00:00",
+		"start time in your dataset, must be expressed in format provided")
+
+	duration = flag.Int("duration_minutes", 60,
+		"amount of messages to load (specified in time)")
+)
 
 func main() {
 	flag.Parse()
