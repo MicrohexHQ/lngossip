@@ -13,7 +13,7 @@ var dbLabel = flag.String("db_label", "label",
 	"value to label simulation data with to uniquely identify it with")
 var startTime = flag.String("start_time", "2019-07-10 14:00:00",
 	"start time in your dataset, must be expressed in format provided")
-var duration = flag.Duration("duration_minutes", 10,
+var duration = flag.Int("duration_minutes", 60,
 	"amount of messages to load (specified in time)")
 
 func main() {
@@ -37,8 +37,8 @@ func main() {
 	}
 
 	log.Println("Reading in messages")
-	// TODO(carla): make this more efficient, takes aaages
-	mgr, err := NewFloodMessageManager(startTime, *duration)
+	duration := time.Duration(*duration)
+	mgr, err := NewFloodMessageManager(startTime, time.Minute*duration)
 	if err != nil {
 		log.Fatalf("could not load messages: %v", err)
 	}

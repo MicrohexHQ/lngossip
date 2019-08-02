@@ -82,8 +82,8 @@ func WriteMessageSeen(db *labelledDB, uuid int64, nodeID string, tick int) error
 
 	var firstSeen, lastSeen, seenCount int
 	err := db.dbc.QueryRow("select first_seen, last_seen, "+
-		"seen_count from received_messages where uuid=? and node_id=?",
-		uuid, nodeID).Scan(&firstSeen, &lastSeen, &seenCount)
+		"seen_count from received_messages where uuid=? and node_id=? and label=?",
+		uuid, nodeID, db.label).Scan(&firstSeen, &lastSeen, &seenCount)
 	// if there is not an entry of the node and uuid, this is a new record in the DB.
 	if err == sql.ErrNoRows {
 		newRecord = true

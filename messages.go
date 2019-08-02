@@ -1,8 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"log"
+	"math"
 	"time"
 )
 
@@ -39,43 +41,132 @@ type MessageManager interface {
 	GetNewMessages(tick int) ([]Message, bool)
 }
 
+type dbChanUpdate struct {
+	id        int64
+	chanID    string
+	ts        time.Time
+	baseFee   int
+	feeRate   int
+	chanFlags int
+	maxHTLC   int
+	minHTLC   int
+	timeLock  int
+}
+
+func (u *dbChanUpdate) isDuplicate(update dbChanUpdate) bool {
+	// if updates are more than 5 minutes apart we do not consider them duplicates
+	if math.Abs(u.ts.Sub(update.ts).Seconds()) > (time.Minute * 5).Seconds() {
+		return false
+	}
+
+	// if updates differ on any dimension they are not duplicates
+	if u.chanID != update.chanID ||
+		u.baseFee != update.baseFee ||
+		u.feeRate != update.feeRate ||
+		u.chanFlags != update.chanFlags ||
+		u.maxHTLC != update.maxHTLC ||
+		u.minHTLC != update.minHTLC ||
+		u.timeLock != update.timeLock {
+		return false
+	}
+
+	return true
+}
+
 func NewFloodMessageManager(startTime time.Time, duration time.Duration) (MessageManager, error) {
 	dbc, err := connectWithURI(*wirewatcher)
 	if err != nil {
 		return nil, err
 	}
-
-	messages := make(map[int][]Message)
 	endTime := startTime.Add(duration)
-	// get unique messages from the DB over the given period
-	rows, err := dbc.Query("select ANY_VALUE(channel_updates.uuid) as "+
-		"`uuid`, channel_updates.chan_id,  ANY_VALUE(`timestamp`) as "+
-		"`timestamp`, ANY_VALUE(byte_len)  as `byte_len`, ANY_VALUE(node_1) "+
-		"as `node_1`, ANY_VALUE(node_2) as `node_2`, channel_updates.channel_flags "+
-		" from channel_updates, ln_messages, channel_announcements where "+
-		"channel_updates.uuid =  ln_messages.uuid and channel_announcements.chan_id = "+
-		"channel_updates.chan_id and `timestamp`>=? and `timestamp`<=? "+
-		"group by channel_updates.chan_id, base_fee, fee_rate, channel_flags, "+
-		"max_htlc, min_htlc, timelock_delta", startTime, endTime)
+
+	rows, err := dbc.Query("select uuid, chan_id, `timestamp`, base_fee,"+
+		"fee_rate, channel_flags, max_htlc, min_htlc, timelock_delta"+
+		" from channel_updates where `timestamp`>=? and `timestamp`<=? "+
+		"order by timestamp",
+		startTime, endTime)
 	if err != nil {
 		return nil, err
 	}
 
-	var lastBucket int
+	recentUpdates := make(map[string]dbChanUpdate)
+	var uniqueUpdates []dbChanUpdate
+
+	var count, uniqueCount int
 
 	defer rows.Close()
 	for rows.Next() {
-		var flags int
-		var node1, node2 string
+		count++
 
-		var msg ChannelUpdate
-		err := rows.Scan(&msg.id, &msg.chanID, &msg.ts, &msg.byteLen, &node1, &node2, &flags)
+		var msg dbChanUpdate
+		err := rows.Scan(&msg.id, &msg.chanID, &msg.ts, &msg.baseFee,
+			&msg.feeRate, &msg.chanFlags, &msg.maxHTLC, &msg.minHTLC,
+			&msg.timeLock)
 		if err != nil {
 			return nil, err
 		}
 
-		msg.Node = node1
-		if flags == 1 {
+		// if we have no updates for this channel, it is not a duplicate and
+		// can be added to the set of
+		recent, ok := recentUpdates[msg.chanID]
+		if !ok {
+			uniqueCount++
+			uniqueUpdates = append(uniqueUpdates, msg)
+			recentUpdates[msg.chanID] = msg
+			continue
+		}
+
+		// if we have an update for this channel already, only add the update
+		// to our unique list of updates if it is not a duplicate.
+		if !recent.isDuplicate(msg) {
+			uniqueCount++
+			uniqueUpdates = append(uniqueUpdates, msg)
+
+			// if the update is more recent than the one we have on record,
+			// replace it in the recentUpdates map which we use for duplicates.
+			if recent.ts.Before(msg.ts) {
+				recentUpdates[msg.chanID] = msg
+			}
+		}
+
+	}
+
+	log.Printf("Read in %v unique messages from %v messages", uniqueCount, count)
+
+	var lastBucket int
+	count = 0
+	messages := make(map[int][]Message)
+
+	for _, m := range uniqueUpdates {
+		var byteLen int
+
+		err := dbc.QueryRow("select byte_len from ln_messages where "+
+			"uuid=?", m.id).Scan(&byteLen)
+		if err != nil {
+			return nil, err
+		}
+
+		var node1, node2 string
+		err = dbc.QueryRow("select node_1, node_2 from "+
+			"channel_announcements where chan_id=? limit 1", m.chanID).Scan(&node1, &node2)
+		if err == sql.ErrNoRows {
+			// we can reasonably expect that we do not have the announcement for
+			// very old channels, so just skip message
+			log.Printf("Cannot find channel announcment for message: %v", m.id)
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+
+		msg := &ChannelUpdate{
+			id:      m.id,
+			Node:    node1,
+			ts:      m.ts,
+			chanID:  m.chanID,
+			byteLen: byteLen,
+		}
+
+		if m.chanFlags == 1 {
 			msg.Node = node2
 		}
 
@@ -83,8 +174,13 @@ func NewFloodMessageManager(startTime time.Time, duration time.Duration) (Messag
 		if bucket >= lastBucket {
 			lastBucket = bucket
 		}
-		messages[bucket] = append(messages[bucket], &msg)
+		messages[bucket] = append(messages[bucket], msg)
+
+		count++
 	}
+
+	log.Printf("Read in flood manager with: %v buckets containing"+
+		" %v messages", len(messages), count)
 
 	return &floodManager{
 		messages:   messages,
